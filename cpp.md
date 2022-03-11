@@ -121,6 +121,8 @@ qsort(num,100,sizeof(num[0]),cmp_int); //回调
 + 生效于编译阶段
 + 存储于内存，需要额外内存空间
 + 带类型
++ 类内成员后面加const，不改变类内数据成员
++ 常量对象const对象，只能调用const成员函数
 ###++i与i++
 + 赋值顺序不同
 + 效率不同，后置++速度慢
@@ -278,3 +280,406 @@ struct example {
 }test_struct;   
 int result = sizeof(test_struct);   /* 字节对齐除了内存起始地址要是数据类型的整数倍以外，还要满足一个条件，那就是占用的内存空间大小需要是结构体中占用最大内存空间的类型的整数倍，所以20不是double（8Byte）的整数倍，我们还要扩充四个字节，最后的结果是result=24 */
 ~~~
+
+###面向对象
++ 一切皆对象，属性变量与函数打包成一个类进行封装，减少重复代码重写
+###封装
++ 隐藏对象属性和细节，对外公开接口和对象交互，不想让人看的，用protect和private将成员封装，开放共有的成员函数，本质是一种管理
+###继承
+| 继承方式        | private | protected | public  |
+|-------------|-------|---------|---------|
+| 基类private   | 不可见   | 不可见     | 不可见     |
+| 基类protected | private | protected | protcted |
+| 基类public    | private | protected | public  |
+###虚继承
++ 解决菱形继承的二义性问题，多重继承在菱形继承下可能对基类多重拷贝
+~~~
+class A{
+public:
+    int _a;
+};
+class B :virtual public A{
+public:
+    int _b;
+};
+class C :virtual public A{
+public:
+    int _c;
+};
+class D :public B, public C{
+public:
+    int _d;
+};
+~~~
++ 虚继承中A共享，BC虚基表指针，指向虚基表，虚基表存放相对偏移量，用来找虚基类
+###虚函数
++ 普通函数只能重载，不能声明为虚函数
++ 构造函数不能声明虚函数
++ 内联函数不能声明为虚函数，内联编译时展开，虚函数运行时动态绑定
++ 静态函数不能声明为虚函数，每个类共享一份代码，不需要动态绑定
++ 友元函数不支持虚函数，c++不支持友元函数的继承，没有继承特性的函数无法作为虚函数
+###多态
++ 父类指针指向子类实例，通过父类指针调用实际子类成员函数
++ 两种方式，重写（动态多态），重载（静态多态） 
+####重写
+  - 派生类中重新定义的函数，函数名参数列表返回值类型与基类一致，派生类对象调用派生类重写函数，基类被重写函数要有virtual修饰，结合动态绑定
+  - 虚函数，类的成员函数
+  - 存在虚函数的类有一维的虚函数表，类的对象有指向虚表开始的虚指针，虚表与类对应，虚表指针与对象对应
+  - 多态性为接口的多种实现，分类的多态性和函数的多态性
+  - 纯虚函数，虚函数=0
+  - 抽象类包括至少一个纯虚函数
+  - 抽象类必须在子类实现这个函数，先有名词，没有内容，派生类实现内容
+  - 所有派生的类对象都可以执行纯虚函数的动作，但类无法为纯虚函数提供合理的缺省实现
+  - 构造函数可以调用虚函数，但可能达不到想要的效果
+  - 派生类对象进入基类构造函数时，对象类型变成基类，此时调用虚函数，达不到多态的效果
+  ~~~
+  class A { 
+    public: 
+      virtual void fun()  {   
+        cout << "A";  
+      } 
+  }; 
+  class B :public A { 
+    public:  
+      virtual void fun()  {
+        cout << "B";  
+      } 
+  }; 
+  int main(void) {  
+    A* a = new B();  
+    a->fun();//输出B，A类中的fun在B类中重写 
+  }
+  ~~~
+####重载
+  - 同一函数名根据函数列表调用，命名倾轧，编译阶段完成
+  ~~~
+  class A {  
+    void fun() {};  
+    void fun(int i) {};  
+    void fun(int i, int j) {};     
+    void fun1(int i,int j){}; 
+  };
+  ~~~
++ c实现重载的方式
+  - 函数指针，重载函数不能使用同名称，类似实现函数重载
+  - 重载函数使用可变参数，如打开文件open函数
+  - gcc内置函数，程序使用编译函数实现函数重载
+~~~
+void func_int(void * a) {     
+  printf("%d\n",*(int*)a);  //输出int类型，注意 void * 转化为int 
+}   
+void func_double(void * b) {     
+  printf("%.2f\n",*(double*)b); 
+}   
+typedef void (*ptr)(void *);  //typedef申明一个函数指针   
+void c_func(ptr p,void *param) {      
+  p(param);                //调用对应函数 
+}   
+
+int main() {     
+  int a = 23;     
+  double b = 23.23;     
+  c_func(func_int,&a);     
+  c_func(func_double,&b);     
+  return 0; 
+}
+~~~
+###构造函数
++ 默认构造函数
++ 有参构造函数
+  - 存在有参构造，不提供默认构造
++ 拷贝构造函数，必须是引用传递，否则变成传值，传值的方式会调用拷贝构造，死循环
+~~~
+class Test {     
+  int i;     
+  int *p; 
+  public:     
+  Test(int ai,int value)     {         
+    i = ai;         
+    p = new int(value);     
+  }     
+  ~Test() {         
+    delete p;     
+  }     
+  Test(const Test& t)     {         
+    this->i = t.i;         
+    this->p = new int(*t.p);     
+  } 
+}; //复制构造函数用于复制本类的对象 
+int main(int argc, char* argv[]) {     
+  Test t1(1,2);     
+  Test t2(t1);//将对象t1复制给t2。注意复制和赋值的概念不同     
+  return 0; 
+}
+~~~
++ 赋值构造函数默认实现的是值拷贝（浅拷贝）。
+~~~
+class HasPtr
+{
+public:
+    HasPtr(const string& s = string()) :ps(new string(s)), i(0) {}
+    ~HasPtr() { delete ps; }
+private:
+    string * ps;
+    int i;
+};
+HasPtr f(HasPtr hp)
+{
+    HasPtr ret = hp;
+    ///... 其他操作
+    return ret;
+  //当函数执行完了之后，将会调用hp和ret的析构函数，将hp和ret的成员ps给delete掉，
+  //但是由于ret和hp指向了同一个对象，因此该对象的ps成员被delete了两次，这样产生一个未定义的错误，
+  //以说，如果一个类定义了析构函数，那么它要定义自己的拷贝构造函数和默认构造函数。
+}
+~~~
++ 移动构造函数
+  - 将其他类型变量隐式转换为本类对象，对象值真实转移，源对象丢失内容
+  - 形参为右值引用
+  - 生成一个指针指向源对象或变量的地址，接管源对象内存，相对于大量数据的拷贝的拷贝节省时间和内存空间
+~~~
+Student(int r) {  
+  int num=1004;  
+  int age= r; 
+~~~
+~~~
+class Example6 {
+  string* ptr;
+ public:
+  Example6 (const string& str) : ptr(new string(str)) {}
+  ~Example6 () {delete ptr;}
+  // 移动构造函数，参数x不能是const Pointer&& x，
+  // 因为要改变x的成员数据的值；
+  // C++98不支持，C++0x（C++11）支持
+  Example6 (Example6&& x) : ptr(x.ptr){
+    x.ptr = nullptr;
+  }
+  // move assignment
+  Example6& operator= (Example6&& x){
+    delete ptr;
+    ptr = x.ptr;
+    x.ptr=nullptr;
+    return *this;
+  }
+  // access content:
+  const string& content() const {return *ptr;}
+  // addition:
+  Example6 operator+(const Example6& rhs){
+    return Example6(content()+rhs.content());
+  }
+};
+int main () {
+  Example6 foo("Exam");           // 构造函数
+  // Example6 bar = Example6("ple"); // 拷贝构造函数
+  Example6 bar(move(foo));     // 移动构造函数
+  // 调用move之后，foo变为一个右值引用变量，
+  // 此时，foo所指向的字符串已经被"掏空"，
+  // 所以此时不能再调用foo
+  bar = bar+ bar;             // 移动赋值，在这儿"="号右边的加法操作，
+  // 产生一个临时值，即一个右值
+  // 所以此时调用移动赋值语句
+  cout << "foo's content: " << foo.content() << '\n';
+  return 0;
+}
+~~~
++ 默认存在
+  - 无参构造
+  - 拷贝构造
+  - 赋值运算符
+  - 析构（非虚）
+###初始化顺序
++ 创建派生类的对象，基类构造函数，优先与派生类的成员类
++ 成员类的构造函数，优先于本身的构造函数
++ 有多个基类，调用顺序为类在派生表中出现的顺序
++ 有多个成员类，调用顺序为对象在类中的声明的顺序
++ 不能直接向基类数据成员赋值，把值传递给适当的基类构造函数，否则两个函数实现紧耦合，难以修改与扩展
++ 析构顺序相反
+###转型
++ 子转父，dynamic_cast<type_id>(expression),安全，不会丢失数据
++ 父转子，强制转换，不安全，会有数据丢失，原因，父类指针引用内存可能不包含子类的成员内存
+###浅拷贝
++ 值拷贝，指针地址不变，会重复释放同一块内存
+###深拷贝
++ 开辟出和源对象一样的大小空间，不会出现重复释放同一块的内存
+~~~
+STRING( const STRING& s )
+{
+    //_str = s._str;
+    _str = new char[strlen(s._str) + 1];
+    strcpy_s( _str, strlen(s._str) + 1, s._str );
+}
+STRING& operator=(const STRING& s)
+{
+    if (this != &s)
+    {
+        //this->_str = s._str;
+        delete[] _str;//先释放旧空间
+        this->_str = new char[strlen(s._str) + 1];//申请一样的空间
+        strcpy_s(this->_str, strlen(s._str) + 1, s._str);//拷贝
+    }
+    return *this;
+}
+~~~
+###虚析构
++ 父类析构虚析构，new子类，基类指针指向子类，释放基类指针可以释放子类空间，防止内存泄漏，否则只析构基类
+###虚构造
++ 虚函数对应一个vtale，表的地址存储在对象的内存空间，如果构造函数为虚函数，需要从vtable调用，但对象还未实例化，没有内存空间，产生悖论
++ 虚函数用于信息不全，使重载函数得到相应的调用，构造函数本身初始化实例，没有必要使虚函数，虚函数作用父类指针调用时调用子类函数，构造函数创建时使用，不可能通过父类指针调用
+###虚基类
++ 被继承的类前加virtual，被继承的类的为虚基类
++ 虚继承的类可以被实例化
+###模板类
++ 实例化，生成的类或函数按照模板定义实现
+  - 显式实例化，告诉模板应该使用什么样的类型去生成具体的类或函数
+  - 隐式实例化，编译器决定使用什么类型实例化模板
++ 具体化，模板使用某种类型时生成的类或函数不能满足需要，修改原模板的定义，使用该类型时，按照具体的定义实现，相当于特殊处理
+~~~
+// #1 模板定义
+template<class T>
+struct TemplateStruct
+{
+    TemplateStruct()
+    {
+        cout << sizeof(T) << endl;
+    }
+};
+
+// #2 模板显示实例化
+template struct TemplateStruct<int>;
+
+// #3 模板具体化
+template<> struct TemplateStruct<double>
+{
+    TemplateStruct() {
+        cout << "--8--" << endl;
+    }
+};
+
+int main()
+{
+    TemplateStruct<int> intStruct;
+    TemplateStruct<double> doubleStruct;
+
+    // #4 模板隐式实例化
+    TemplateStruct<char> llStruct;
+}
+~~~
+###类内定义引用数据成员
++ 不能使用默认构造初始化，必须提供构造函数初始化引用成员变量，否则未初始化错误
++ 构造函数的形参为引用类型
++ 不能在构造函数里初始化，必须在初始化列表初始化
+###仿函数
++ 重载()的函数
+~~~
+class ShorterThan {
+ public:
+     explicit ShorterThan(int maxLength) : length(maxLength) {}
+     bool operator() (const string& str) const {
+         return str.length() < length;
+     }
+ private:
+     const int length;
+ };
+~~~
+###类模板
++ 模板的定义，不是实实在在的类，定义中用到通用类型参数
++ 类型参数可以有多个，每个类型前加class，定义对象时代入实际类型名
++ 注意作用域，只能在有效作用域内定义对象
++ 可以作为基类，派生出派生模板类
+###模板类
++ 类模板的实例化，类定义中参数被实际类型所代替
+###虚函数表
++ 存储虚函数地址的数组，以null结尾，虚表编译阶段生成，对象内存空间开辟后，写入对象中的vfptr，调用构造函数
++ 考虑虚表二次写入机制，两次构造函数虚表写两次
++ 编译期生成基类与派生类的虚表，派生类的虚表不是真正的派生类虚表
++ 派生类对象进行给基类成员开辟内存，指向基类虚表
++ 调用基类构造函数，vfptr指向null
++ 派生类对象为自己的成员开辟内存
++ 虚表合并，生成派生类最终的虚函数表
++ 将vfptr指向派生类的虚表
++ 调用派生类的构造函数
++ 虚函数指针合并
+
+
+##STL
+###容器
+####顺序容器
++ vector动态数组，元素内存连续存放，随机存取O(1)，尾部增删O(1)
+  - 增加元素
+  ~~~
+  //新增元素  
+  void insert(const_iterator iter,const T& t ) {    
+    int index=iter-begin();  
+    if (index<size_)  {   
+      if (size_==capacity_)   {    
+        int capa=calculateCapacity();    
+        newCapacity(capa);   
+      }   
+      memmove(buf+index+1,buf+index,(size_-index)*sizeof(T));    
+      buf[index]=t;   
+      size_++;  
+    }  
+  }
+  ~~~
+  - 删除元素
+  ~~~
+  //删除元素  
+  iterator erase(const_iterator iter) {     
+    int index=iter-begin();      
+    if (index<size_ && size_>0)     {         
+      memmove(buf+index ,buf+index+1,(size_-index)*sizeof(T));          
+      buf[--size_]=T();     
+    }      
+    return iterator(iter);  
+  } 
+  ~~~
+  - 迭代器
+  ~~~
+  //迭代器的实现 
+  template<class _Category,class _Ty,class _Diff = ptrdiff_t,class _Pointer = _Ty *,class _Reference = _Ty&> 
+  struct iterator {         
+    // base type for all iterator classes     
+    typedef _Category iterator_category;    
+    typedef _Ty value_type;     
+    typedef _Diff difference_type;     
+    typedef _Diff distance_type;    // retained     
+    typedef _Pointer pointer;     
+    typedef _Reference reference; 
+  };
+  ~~~
+
++ deque双向队列，元素内存连续存放，随机存取O(1)，两端增删O(1)
++ list双向链表，元素内存不连续存放，增删O(1)，不支持随机存取
+####关联容器，元素排序，红黑树（非严格平滑二叉搜索数）实现
++ set/multiset集合
++ map/multimap根据键值排序与检索
++ 键值无法修改
+###迭代器
++ 用于提供一种方法顺序访问一个聚合对象种各个元素，不暴露对象内部表示，可以在不知道对象内部表示的情况下，按照一定顺序访问聚合对象的各个元素
++ 不是指针，是类模板，表现的像指针，重载了指针的一些操作符，本质封装了原生指针，相当于智能指针，返回对象的引用
++ vector,deque，随机访问，erase后后面迭代器往前移动一位
++ map，set，双向迭代器，erase后当前迭代器失效，不影响后面的迭代器
++ list，双向迭代器，erase返回下一个有效的迭代器，上述两种方法都可以使用
+
+###容器适配器，封装了基本容器
++ stack，queue，priority_queue
+###空间配置器
++ 空间配置与对象构造分割
++ 内存配置：alloc::allocate()，内存释放：alloc::deallocate()，对象构造：::construct()，对象释放：::destroy()
++ 内存空间的配置与释放，两级配置器，
+  - 一级配置器考虑大块内存空间，利用malloc与free实现
+  - 二级配置器考虑小块内存空间（最大化解决内存碎片问题），链表free_list维护内存池，链表通过union实现，空闲的内存块挂在一起，一旦被使用，从链表剔除
+###算法，操作容器中的数据的模板函数
+###仿函数，函数对象，重载()
+###resize与reserve
++ capacity能够容纳的最大元素个数
++ size元素的实际个数
++ resize既分配空间也创建对象，既修改capacity，也修改size，带两个参数
++ reserve预留空间，不创建对象，通过insert或push_back创建对象，只修改capacity，带一个参数
+###push_back与emplace_back
++ push_back构造临时对象拷贝到容器末尾
++ emplace_back在容器末尾构造对象，省去拷贝过程
+###容器动态链接可能产生的问题
++ 给动态库函数传递容器的对象本身，会出现内存堆栈破坏的问题
++ 原因，容器与动态链接库互相支持不够好，动态链接库函数使用容器，只能传递容器的引用，并且保证容器大小不能超出初始大小，否则容器重新分配，出现内存堆栈破坏
+
