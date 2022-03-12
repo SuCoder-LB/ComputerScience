@@ -494,9 +494,15 @@ int main () {
 + 有多个成员类，调用顺序为对象在类中的声明的顺序
 + 不能直接向基类数据成员赋值，把值传递给适当的基类构造函数，否则两个函数实现紧耦合，难以修改与扩展
 + 析构顺序相反
-### 转型
+### 类型转换
++ c的强制转换类型不明确，不能进行错误检查
 + 子转父，dynamic_cast<type_id>(expression),安全，不会丢失数据
 + 父转子，强制转换，不安全，会有数据丢失，原因，父类指针引用内存可能不包含子类的成员内存
++ const_cast,去const
++ static_cast，用于隐式转换，非const转const，类向上转换，向下不安全
++ dynamic_cast，只能用于含有虚函数的类，RTTI技术，运行时类型信息，提供运行时确定对象类型的方法，转换的时候检查类型，类型相等成功，不等转换失败
++ reinterpret_cast，任何转换，不保证结果
+
 ### 浅拷贝
 + 值拷贝，指针地址不变，会重复释放同一块内存
 ### 深拷贝
@@ -564,6 +570,12 @@ int main()
     TemplateStruct<char> llStruct;
 }
 ~~~
+### 可变参数模板
+要创建可变参数模板
++ 模板参数包（parameter pack）
++ 函数参数包
++ 展开（unpack）参数包
++ 递归
 ### 类内定义引用数据成员
 + 不能使用默认构造初始化，必须提供构造函数初始化引用成员变量，否则未初始化错误
 + 构造函数的形参为引用类型
@@ -683,3 +695,288 @@ class ShorterThan {
 + 给动态库函数传递容器的对象本身，会出现内存堆栈破坏的问题
 + 原因，容器与动态链接库互相支持不够好，动态链接库函数使用容器，只能传递容器的引用，并且保证容器大小不能超出初始大小，否则容器重新分配，出现内存堆栈破坏
 
+## 新特性
+### 统一初始化
++ 初始化列表初始化，适用于任意对象
+~~~
+class Foo { 
+ public:     
+  Foo(int) {} 
+ private:     
+  Foo(const Foo &); 
+}; 
+int main(void) {     
+  Foo a1(123);     
+  Foo a2 = 123;  //error: 'Foo::Foo(const Foo &)' is private     
+  Foo a3 = { 123 };     
+  Foo a4 { 123 };     
+  int a5 = { 3 };     
+  int a6 { 3 };     
+  return 0; 
+}
+~~~
+### 成员变量任意初始化
+~~~
+class B { 
+public:  
+  int m = 1234; //成员变量有一个初始值  
+  int n; };
+~~~
+### auto关键字自动判断类型
++ 根据"="右边的初始值 value 推导出变量的类型
++ 要求变量必须初始化（根据变量初始化推导类型）
++ 与const结合
+  - 类型不为引用时，不保留表达式的const
+  - 类型为引用时，保留const属性
+~~~
+int  x = 0;
+const  auto n = x;  //n 为 const int ，auto 被推导为 int
+auto f = n;      //f 为 const int，auto 被推导为 int（const 属性被抛弃）
+const auto &r1 = x;  //r1 为 const int& 类型，auto 被推导为 int
+auto &r2 = r1;  //r1 为 const int& 类型，auto 被推导为 const int 类型
+~~~
++ 定义迭代器
++ 泛型编程，不希望指明具体类型时候使用
+### decltype求表达式类型
++ 根据 exp 表达式推导出变量的类型，跟"="右边的 value 没有关系
++ 不要求变量初始化
+~~~
+decltype(exp) varname = value;
+decltype(exp) varname;  
+int a = 0; decltype(a) b = 1;  //b 被推导成了 int 
+decltype(10.8) x = 5.5;  //x 被推导成了 double 
+decltype(x + 100) y;  //y 被推导成了 double
+~~~
+### 智能指针
++ 指针存地址
++ auto_ptr采用所有权，剥夺后存在内存崩溃问题
+~~~
+auto_ptr<string> p1(new string("I reigned loney as a cloud."));
+auto_ptr<string> p2;
+p2=p1; //auto_ptr不会报错，调用p1时报错
+~~~
++ unique_ptr独占拥有，同一时间只能有一个指向对象，避免资源泄漏，只允许对临时右值赋值，更安全，若想赋值，使用move
+~~~
+unique_ptr<string> pu1(new string ("hello world"));
+unique_ptr<string> pu2;
+pu2 = pu1;      // #1 not allowed
+unique_ptr<string> pu3;
+pu3 = unique_ptr<string>(new string ("You"));   // #2 allowed
+unique_ptr<string> ps1, ps2;
+ps1 = demo("hello");
+ps2 = move(ps1);
+ps1 = demo("alexia");
+cout << *ps2 << *ps1 << endl;
+~~~
++ 多个shared_ptr共用同一块内存，采用计数机制，计数为0，释放堆内存
+  - use_count，返回引用计数
+  - unique，返回计数是否为1
+  - swap，交换两个shared_ptr的对象
+  - reset，放弃对象所有权，计数减一
+  - get，返回内部对象，由于重载了()，可以不用
+  - 两个对象同时用shared_ptr指向对方会造成内存泄漏
+  - 线程安全性
+     - 多线程环境调用不同的shared_ptr不需要额外的同步手段
+     - 多线程环境访问同一个shared_ptr需要同步，否则race_condition
+     - 可以使用 shared_ptr overloads of atomic functions来防止race condition
+     - 多个线程同时读同一个shared_ptr对象是线程安全的，但是如果是多个线程对同一个shared_ptr对象进行读和写，需要加锁
+     - 多线程读写shared_ptr所指向的同一个对象，不管是相同的shared_ptr对象，还是不同的shared_ptr对象，需要加锁
+  ~~~
+  //构建 2 个智能指针     
+  std::shared_ptr<int> p1(new int(10));     
+  std::shared_ptr<int> p2(p1);     
+  //输出 p2 指向的数据    
+  cout << *p2 << endl;     
+  p1.reset();//引用计数减 1,p1为空指针     
+  if (p1) {         
+    cout << "p1 不为空" << endl;     
+  } else {         
+    cout << "p1 为空" << endl;    
+  }     
+  //以上操作，并不会影响 p2     
+  cout << *p2 << endl;     
+  //判断当前和 p2 同指向的智能指针有多少个     
+  cout << p2.use_count() << endl;
+  /*      程序运行结果：          10  p1 为空  10  1  */ 
+  ~~~
+  
+  ~~~
+  shared_ptr<long> global_instance = make_shared<long>(0);
+  std::mutex g_i_mutex;
+  void thread_fcn()
+  {
+  //std::lock_guard<std::mutex> lock(g_i_mutex);//注释打开程序正确
+    //shared_ptr<long> local = global_instance;
+ 
+    for(int i = 0; i < 100000000; i++)
+    {
+        *global_instance = *global_instance + 1;//非线程安全
+        //*local = *local + 1;//指向相同的对象，结果未定
+    }
+  }
+
+  int main(int argc, char** argv)
+  {
+  thread thread1(thread_fcn);
+  thread thread2(thread_fcn);
+
+    thread1.join();
+    thread2.join();
+ 
+    cout << "*global_instance is " << *global_instance << endl;
+ 
+    return 0;  
+  }
+  ~~~
++ weak_ptr
+  - 不控制对象生命周期的智能指针，指向一个shared_ptr的对象，提供访问手段，可以从shared_ptr，或weak_ptr构造，不引起计数的改变，解决shared_ptr相互引用的死锁问题，两个shared_ptr相互引用，计数无法为0，资源不会释放，和shared_ptr之间可以相互转化，shared_ptr可以直接赋值给它，它可以通过调用lock函数来获得shared_ptr
+  - 不知道对象的计数个数，配合shared_ptr工作
+  - 可以检测到管理的对象释放被释放
+~~~
+class B;
+class A
+{
+public:
+    shared_ptr<B> pb_;
+    ~A()
+{
+    cout<<"A delete\n";
+}
+};
+class B
+{
+public:
+    shared_ptr<A> pa_;
+    ~B()
+{
+    cout<<"B delete\n";
+}
+};
+void fun()
+{
+    shared_ptr<B> pb(new B());
+    shared_ptr<A> pa(new A());
+    pb->pa_ = pa;
+    pa->pb_ = pb;
+    cout<<pb.use_count()<<endl;
+    cout<<pa.use_count()<<endl;
+}
+int main()
+{
+    fun();
+    return 0;
+}
+//改为weak_ptr即可
+~~~
+### nullptr
++ 是nullptr_t类型的右值常量，初始化空类型指针，是类型的一个实例对象，可以直接使用，可以被隐式转换成任意对象，可以解决NULL的遗留问题
+~~~
+void isnull(void *c){
+    cout << "void*c" << endl;
+}
+void isnull(int n){
+    cout << "int n" << endl;
+}
+int main() {
+    isnull(NULL);
+    isnull(nullptr);
+    return 0;
+}
+
+/*    
+    程序运行结果：        
+    int n
+    void*c
+*/ 
+~~~
+### 基于范围的for
+### 右值引用与move
++ 不能取地址的表达式，就是右值引用，能取地址的，就是左值
++ 98/03版只能对左值引用，无法对右值引用，（允许常量左值引用操作右值）
++ 实现移动语义等需要对右值进行修改
++ 右值引用必须立即初始化，且只能使用右值初始化
+~~~
+int num = 10;
+//int && a = num;  //右值引用不能初始化为左值
+int && a = 10;
+~~~
++ 可以对右值进行修改
+~~~
+int && a = 10;
+a = 100;
+cout << a << endl;
+/*    程序运行结果：        
+        100    
+*/  
+~~~
++ 可以常量右值引用，但无意义，不修改，使用左值引用即可
++ move左值强制转为右值
+~~~
+class first {
+public:
+    first() :num(new int(0)) {
+        cout << "construct!" << endl;
+    }
+    //移动构造函数
+    first(first &&d) :num(d.num) {
+        d.num = NULL;
+        cout << "first move construct!" << endl;
+    }
+public:    //这里应该是 private，使用 public 是为了更方便说明问题
+    int *num;
+};
+class second {
+public:
+    second() :fir() {}
+    //用 first 类的移动构造函数初始化 fir
+    second(second && sec) :fir(move(sec.fir)) {
+        cout << "second move construct" << endl;
+    }
+public:    //这里也应该是 private，使用 public 是为了更方便说明问题
+    first fir;
+};
+int main() {
+    second oth;
+    second oth2 = move(oth);
+    //cout << *oth.fir.num << endl;   //程序报运行时错误
+    return 0;
+}
+
+/*    
+    程序运行结果：
+      construct!
+    first move construct!
+    second move construct
+*/  
+~~~
+### hash，无序容器
+### 正则，描述字符串
+| 符号    | 意义        |
+|-------|-----------|
+| ^     | 行开头       |
+| $     | 行结尾       |
+| .     | 任意单个字符    |
+| [...] | 任意其中一个字符  |
+| (...) | 设定分组      |
+| \     | 转义字符      |
+| \d    | 数字        |
+| \D    | 非数字       |
+| \w    | 字母数字下划线   |
+| \W    | \w取反      |
+| \s    | 空格        |
+| \S    | 非空格       |
+| +     | 重复1次或多次   |
+| *     | 重复任意次     |
+| ?     | 重复0或1次    |
+| {n}   | 前面的元素重复n次 |
+| {n,}  | 重复至少n次    |
+| {n,m} | 重复n到m次    |
+| ⎮    | 逻辑或       |
+### lambda匿名函数
++ [外部变量访问方式说明符] (参数) mutable noexcept/throw() -> 返回值类型 {函数体;};
++ []告诉编译器这是一个匿名函数，不能省略，注明可以使用哪些外部变量
++ ()传递参数，0参数时可省略
++ mutable，可省略，若不省略，()不省略，默认以值传递时，不允许修改变量（看作const），想修改用mutable
++ noexcept/throw，可省略，若不省略，()不省略，默认lambda可以抛出任何类型异常，noexcept不抛出异常，throw指定抛出异常的类型
++ ->返回值类型 指定返回值类型，如果只有一个return语句或返回void，编译器可以自行推导，可以省略
++ 函数体，除了可以使用指定传递进来的参数之外，还可以使用指定的外部变量以及全局范围内的所有全局变量
