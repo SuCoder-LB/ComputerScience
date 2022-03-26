@@ -1,4 +1,4 @@
-//重排字符串，计算重排后能出现”acbcca“的个数
+//閲嶆帓瀛楃涓诧紝璁＄畻閲嶆帓鍚庤兘鍑虹幇鈥漚cbcca鈥滅殑涓暟
 
 #include <bits/stdc++.h>
 
@@ -11,7 +11,7 @@ int main() {
   for(auto c:s){
     hash[c]++;
   }
-  int val=min(hash['c']/3,min(hash['a']-1,hash['b']))+1;
+  int val=min(hash['c']/3,min(hash['a']-1,hash['b']));
 
   cout<<val<<endl;
   return 0;
